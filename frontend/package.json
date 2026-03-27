@@ -2,20 +2,21 @@
   "name": "homelab-inventory-v2",
   "version": "2.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-scripts": "5.0.1",
     "@xyflow/react": "^12.3.0",
     "lucide-react": "^0.447.0",
     "react-hot-toast": "^2.4.1"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build"
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
   },
-  "browserslist": {
-    "production": [">0.2%","not dead","not op_mini all"],
-    "development": ["last 1 chrome version"]
+  "scripts": {
+    "start": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview"
   }
 }

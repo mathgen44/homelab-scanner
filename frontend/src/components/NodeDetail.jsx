@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Scan, ChevronDown, ChevronRight, Shield, Trash2 } from 'lucide-react';
 
-const API = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
+const API = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 const STATUS_COLORS = { online:'#34d399',offline:'#f87171',scanning:'#fbbf24',needs_creds:'#f59e0b',unknown:'#4a5568' };
 const STATUS_LABELS = { online:'En ligne',offline:'Hors ligne',scanning:'Scan en cours',needs_creds:'Auth requise',unknown:'Inconnu' };
 const TYPE_ICONS = { router:'🌐',switch:'🔀',server:'🖥️',nas:'💾',vm:'⬜',lxc:'📦',container:'🐳',camera:'📷',printer:'🖨️',game_console:'🎮',raspberry_pi:'🍓',workstation:'💻',access_point:'📡',unknown:'❓' };
