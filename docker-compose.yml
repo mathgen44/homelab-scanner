@@ -1,0 +1,50 @@
+version: '3.9'
+
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: homelab-backend
+    restart: unless-stopped
+    volumes:
+      - homelab-data:/data
+      # Clés SSH optionnelles pour auth par clé :
+      # - ~/.ssh:/root/.ssh:ro
+    environment:
+      - DATA_DIR=/data
+    # network_mode: host  ← décommentez sur Linux pour accès réseau complet
+    # Si network_mode: host, supprimez "ports:" et "networks:" ci-dessous
+    ports:
+      - "8000:8000"
+    networks:
+      - homelab-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: homelab-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - homelab-net
+
+volumes:
+  homelab-data:
+    driver: local
+
+networks:
+  homelab-net:
+    driver: bridge

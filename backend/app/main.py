@@ -1,0 +1,236 @@
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Optional
+import asyncio
+
+from app.models.inventory import (
+    InventoryData, InventoryNode, DiscoveryRequest,
+    CredentialSubmit, WsEvent, WsEventType, NodeType
+)
+from app.models import storage
+from app.security import vault
+from app.scanners import engine
+
+app = FastAPI(title="Homelab Inventory v2", version="2.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ── WebSocket ──────────────────────────────────────────────
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    await engine.manager.connect(ws)
+    try:
+        while True:
+            # Listen for client messages (credentials, commands)
+            data = await ws.receive_text()
+            import json
+            try:
+                msg = json.loads(data)
+                action = msg.get("action")
+                if action == "submit_credentials":
+                    engine.submit_credentials(
+                        node_id=msg["node_id"],
+                        username=msg["username"],
+                        password=msg["password"],
+                        port=msg.get("port", 22),
+                    )
+                elif action == "ping":
+                    await engine.manager.send(ws, WsEvent(type=WsEventType.SCAN_LOG, message="pong"))
+            except Exception:
+                pass
+    except WebSocketDisconnect:
+        engine.manager.disconnect(ws)
+
+
+# ── Discovery ──────────────────────────────────────────────
+@app.post("/api/discover")
+async def discover(req: DiscoveryRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(
+        engine.run_discovery, req.ranges, req.manual_ips, req.timeout
+    )
+    return {"status": "discovery_started"}
+
+
+# ── Scan ───────────────────────────────────────────────────
+@app.post("/api/scan/all")
+async def scan_all(background_tasks: BackgroundTasks, node_ids: Optional[List[str]] = None):
+    background_tasks.add_task(engine.run_full_scan, node_ids)
+    return {"status": "scan_started"}
+
+
+@app.post("/api/scan/node/{node_id}")
+async def scan_node(node_id: str, background_tasks: BackgroundTasks):
+    background_tasks.add_task(engine.run_node_scan, node_id)
+    return {"status": "scan_started", "node_id": node_id}
+
+
+# ── Credentials ────────────────────────────────────────────
+@app.post("/api/credentials")
+async def save_credentials(cred: CredentialSubmit):
+    vault.store_credential(cred.node_id, cred.username, cred.password, cred.port)
+    engine.submit_credentials(cred.node_id, cred.username, cred.password, cred.port)
+    return {"stored": True, "node_id": cred.node_id}
+
+
+@app.delete("/api/credentials/{node_id}")
+async def delete_credentials(node_id: str):
+    vault.delete_credential(node_id)
+    return {"deleted": node_id}
+
+
+@app.get("/api/credentials/stored")
+async def list_credentials():
+    return {"node_ids": vault.list_stored_ids()}
+
+
+# ── Inventory ──────────────────────────────────────────────
+@app.get("/api/inventory", response_model=InventoryData)
+def get_inventory():
+    return storage.load()
+
+
+@app.get("/api/inventory/nodes", response_model=List[InventoryNode])
+def get_nodes():
+    return storage.all_nodes()
+
+
+@app.get("/api/inventory/nodes/{node_id}", response_model=InventoryNode)
+def get_node(node_id: str):
+    node = storage.get(node_id)
+    if not node:
+        raise HTTPException(404, "Node not found")
+    return node
+
+
+@app.put("/api/inventory/nodes/{node_id}", response_model=InventoryNode)
+def update_node(node_id: str, node: InventoryNode):
+    storage.upsert(node)
+    return node
+
+
+@app.delete("/api/inventory/nodes/{node_id}")
+def delete_node(node_id: str):
+    storage.delete(node_id)
+    return {"deleted": node_id}
+
+
+@app.post("/api/inventory/nodes", response_model=InventoryNode)
+def add_node(node: InventoryNode):
+    storage.upsert(node)
+    return node
+
+
+# ── Topology summary ───────────────────────────────────────
+@app.get("/api/topology/summary")
+def get_summary():
+    from app.models.inventory import NodeStatus
+    nodes = storage.all_nodes()
+    online = sum(1 for n in nodes if n.status == NodeStatus.ONLINE)
+    offline = sum(1 for n in nodes if n.status == NodeStatus.OFFLINE)
+    containers = sum(len(n.docker_containers) for n in nodes)
+    vms = sum(len(n.virtual_machines) for n in nodes)
+    cpu_vals = [n.hardware.cpu_usage for n in nodes if n.hardware and n.hardware.cpu_usage is not None]
+    return {
+        "total": len(nodes),
+        "online": online,
+        "offline": offline,
+        "unknown": len(nodes) - online - offline,
+        "containers": containers,
+        "vms": vms,
+        "avg_cpu": round(sum(cpu_vals) / len(cpu_vals), 1) if cpu_vals else None,
+    }
+
+
+@app.get("/api/topology/graph")
+def get_graph():
+    from app.models.inventory import NodeStatus
+    nodes = storage.all_nodes()
+    TYPE_COLORS = {
+        NodeType.ROUTER: "#3b82f6", NodeType.SWITCH: "#6366f1",
+        NodeType.SERVER: "#8b5cf6", NodeType.NAS: "#ec4899",
+        NodeType.VM: "#14b8a6", NodeType.LXC: "#0d9488",
+        NodeType.CONTAINER: "#06b6d4", NodeType.CAMERA: "#f59e0b",
+        NodeType.PRINTER: "#84cc16", NodeType.GAME_CONSOLE: "#22c55e",
+        NodeType.RASPBERRY_PI: "#ef4444", NodeType.WORKSTATION: "#a78bfa",
+        NodeType.ACCESS_POINT: "#38bdf8", NodeType.UNKNOWN: "#6b7280",
+    }
+    TYPE_ICONS = {
+        NodeType.ROUTER: "🌐", NodeType.SWITCH: "🔀", NodeType.SERVER: "🖥️",
+        NodeType.NAS: "💾", NodeType.VM: "⬜", NodeType.LXC: "📦",
+        NodeType.CONTAINER: "🐳", NodeType.CAMERA: "📷", NodeType.PRINTER: "🖨️",
+        NodeType.GAME_CONSOLE: "🎮", NodeType.RASPBERRY_PI: "🍓",
+        NodeType.WORKSTATION: "💻", NodeType.ACCESS_POINT: "📡",
+        NodeType.UNKNOWN: "❓",
+    }
+
+    # Assign positions by depth
+    depth_map: dict = {}
+    layers: dict = {}
+
+    def get_depth(nid, visited=None):
+        if visited is None:
+            visited = set()
+        if nid in visited:
+            return 0
+        visited.add(nid)
+        n = next((x for x in nodes if x.id == nid), None)
+        if not n or not n.parent_id:
+            return 0
+        return 1 + get_depth(n.parent_id, visited)
+
+    for n in nodes:
+        d = get_depth(n.id)
+        depth_map[n.id] = d
+        layers.setdefault(d, []).append(n.id)
+
+    positions = {}
+    H, V = 230, 190
+    for depth, ids in layers.items():
+        for i, nid in enumerate(ids):
+            positions[nid] = {"x": (i - (len(ids) - 1) / 2) * H, "y": depth * V}
+
+    rf_nodes = []
+    edges = []
+
+    for n in nodes:
+        color = TYPE_COLORS.get(n.type, "#6b7280")
+        rf_nodes.append({
+            "id": n.id, "type": "homelabNode",
+            "position": positions.get(n.id, {"x": 0, "y": 0}),
+            "data": {
+                "id": n.id, "label": n.name, "ip": n.ip,
+                "type": n.type, "status": n.status,
+                "icon": TYPE_ICONS.get(n.type, "❓"),
+                "color": color,
+                "hardware": n.hardware.model_dump() if n.hardware else None,
+                "containers_count": len(n.docker_containers),
+                "vms_count": len(n.virtual_machines),
+                "services_count": len(n.services),
+                "has_credentials": n.has_credentials,
+                "scan_error": n.scan_error,
+                "last_scan": n.last_scan,
+                "scanned_layers": n.scanned_layers,
+            }
+        })
+        if n.parent_id:
+            edges.append({
+                "id": f"e-{n.parent_id}-{n.id}",
+                "source": n.parent_id, "target": n.id,
+                "type": "smoothstep",
+                "animated": n.status == NodeStatus.ONLINE,
+                "style": {"stroke": color, "strokeWidth": 2, "opacity": 0.6},
+            })
+
+    return {"nodes": rf_nodes, "edges": edges}
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "version": "2.0"}

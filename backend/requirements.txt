@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+websockets==13.1
+paramiko==3.4.0
+pydantic==2.8.2
+pyyaml==6.0.2
+python-nmap==0.7.1
+cryptography==43.0.1
+python-multipart==0.0.9
+aiofiles==23.2.1
