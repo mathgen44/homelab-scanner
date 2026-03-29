@@ -9,7 +9,7 @@ import DiscoveryWizard from './components/DiscoveryWizard';
 import CredentialModal from './components/CredentialModal';
 import Header from './components/Header';
 
-const API = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+const API = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.host}`;
 
 export default function App() {
   const [tab, setTab] = useState('topology');
