@@ -4,7 +4,7 @@ import { X, Scan, ChevronDown, ChevronRight, Shield, Trash2 } from 'lucide-react
 const API = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.host}`;
 const STATUS_COLORS = { online:'#34d399',offline:'#f87171',scanning:'#fbbf24',needs_creds:'#f59e0b',unknown:'#4a5568' };
 const STATUS_LABELS = { online:'En ligne',offline:'Hors ligne',scanning:'Scan en cours',needs_creds:'Auth requise',unknown:'Inconnu' };
-const TYPE_ICONS = { router:'🌐',switch:'🔀',server:'🖥️',nas:'💾',vm:'⬜',lxc:'📦',container:'🐳',camera:'📷',printer:'🖨️',game_console:'🎮',raspberry_pi:'🍓',workstation:'💻',access_point:'📡',unknown:'❓' };
+const TYPE_ICONS = { router:'🌐',switch:'🔀',server:'🖥️',nas:'💾',vm:'⬜',lxc:'📦',container:'🐳',compose_group:'📦',camera:'📷',printer:'🖨️',game_console:'🎮',raspberry_pi:'🍓',workstation:'💻',access_point:'📡',unknown:'❓' };
 const LAYER_LABELS = { network:'Réseau',ssh:'SSH',docker:'Docker',proxmox:'Proxmox',synology:'Synology',services:'Services' };
 
 function Section({ title, icon, count, children, defaultOpen=true }) {
@@ -31,7 +31,7 @@ function UBar({label,value}){
   return(<div style={{marginBottom:8}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{fontSize:11,color:'#8899aa'}}>{label}</span><span style={{fontSize:11,color,fontWeight:600}}>{pct}%</span></div><div style={{height:4,background:'#1e2736',borderRadius:2,overflow:'hidden'}}><div style={{width:`${pct}%`,height:'100%',background:color,borderRadius:2,transition:'width .3s'}}/></div></div>);
 }
 
-export default function NodeDetail({ node, onClose, onScan }) {
+export default function NodeDetail({ node, onClose, onScan, allNodes = [], onChildClick }) {
   const [showCredForm, setShowCredForm] = useState(false);
   const [credUser, setCredUser] = useState('');
   const [credPass, setCredPass] = useState('');
@@ -180,6 +180,37 @@ export default function NodeDetail({ node, onClose, onScan }) {
           <Section title="Couches scannées" icon="📋" defaultOpen={false}>
             <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
               {node.scanned_layers.map(l=><span key={l} style={{fontSize:10,padding:'2px 8px',borderRadius:4,background:'rgba(52,211,153,0.08)',color:'#34d399',border:'1px solid rgba(52,211,153,0.2)'}}>✓ {LAYER_LABELS[l]||l}</span>)}
+            </div>
+          </Section>
+        )}
+
+        {/* Children nodes in inventory */}
+        {node.child_ids?.length>0&&(
+          <Section title="Dépendances directes" icon="🔗" count={node.child_ids.length}>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              {node.child_ids.map(cid=>{
+                const child = allNodes?.find(n=>n.id===cid);
+                if(!child) return null;
+                const running = child.status==='online';
+                const childIcon = TYPE_ICONS[child.type]||'❓';
+                return(
+                  <div key={cid} onClick={()=>onChildClick?.(child)}
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',
+                      borderRadius:6,background:'#161b25',border:'1px solid #1e2736',
+                      cursor:'pointer',transition:'border-color .1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor='#263044'}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor='#1e2736'}
+                  >
+                    <span style={{fontSize:14}}>{childIcon}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11,fontWeight:600,color:'#e2e8f0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{child.name}</div>
+                      <div style={{fontSize:10,color:'#38bdf8',fontFamily:'JetBrains Mono,monospace'}}>{child.ip}</div>
+                    </div>
+                    <div style={{width:7,height:7,borderRadius:'50%',background:running?'#34d399':'#f87171',flexShrink:0,
+                      boxShadow:running?'0 0 5px #34d399':'none'}}/>
+                  </div>
+                );
+              })}
             </div>
           </Section>
         )}

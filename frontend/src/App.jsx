@@ -133,7 +133,8 @@ export default function App() {
     <div className="app">
       <Toaster position="top-right" toastOptions={{ style: { background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border2)', fontSize: 12, fontFamily: 'var(--mono)' } }} />
       <Header summary={summary} wsConnected={wsConnected} scanning={scanning || discovering}
-        scanProgress={scanProgress} onScan={startScan} onDiscover={() => setShowDiscovery(true)} />
+        scanProgress={scanProgress} onScan={startScan} onDiscover={() => setShowDiscovery(true)}
+        onReset={() => { fetchData(); setScanLogs([]); }} />
       <nav className="tabs">
         {TABS.map(({ id, label, emoji, badge }) => (
           <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
@@ -148,7 +149,9 @@ export default function App() {
         {tab === 'dependencies' && <DependencyManager nodes={nodes} onApplied={fetchData} />}
         {tab === 'terminal' && <ScanTerminal logs={scanLogs} scanning={scanning || discovering} onClear={() => setScanLogs([])} />}
       </main>
-      {selectedNode && <NodeDetail node={selectedNode} onClose={() => setSelectedNode(null)} onScan={() => scanNode(selectedNode.id)} />}
+      {selectedNode && <NodeDetail node={selectedNode} onClose={() => setSelectedNode(null)}
+        onScan={() => scanNode(selectedNode.id)} allNodes={nodes}
+        onChildClick={(child) => setSelectedNode(child)} />}
       {showDiscovery && <DiscoveryWizard onStart={startDiscovery} onClose={() => setShowDiscovery(false)} />}
       {credRequest && <CredentialModal nodeId={credRequest.node_id} ip={credRequest.ip} name={credRequest.name}
         onSubmit={(u, p, port) => submitCredentials(credRequest.node_id, u, p, port)} onSkip={() => setCredRequest(null)} />}

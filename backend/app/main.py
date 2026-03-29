@@ -172,37 +172,52 @@ def get_graph():
         NodeType.UNKNOWN: "❓",
     }
 
-    # Assign positions by depth
-    depth_map: dict = {}
-    layers: dict = {}
-
-    def get_depth(nid, visited=None):
-        if visited is None:
-            visited = set()
-        if nid in visited:
-            return 0
-        visited.add(nid)
-        n = next((x for x in nodes if x.id == nid), None)
-        if not n or not n.parent_id:
-            return 0
-        return 1 + get_depth(n.parent_id, visited)
-
+    # ── Algorithme de layout arbre vertical sans croisements ──────────────
+    # Calcul bottom-up : on place d'abord les feuilles, puis on remonte
+    children: dict = {n.id: [] for n in nodes}
+    roots = []
     for n in nodes:
-        d = get_depth(n.id)
-        depth_map[n.id] = d
-        layers.setdefault(d, []).append(n.id)
+        if n.parent_id and n.parent_id in children:
+            children[n.parent_id].append(n.id)
+        elif not n.parent_id:
+            roots.append(n.id)
 
+    NODE_W, NODE_H, GAP_X, GAP_Y = 180, 80, 40, 120
     positions = {}
-    H, V = 230, 190
-    for depth, ids in layers.items():
-        for i, nid in enumerate(ids):
-            positions[nid] = {"x": (i - (len(ids) - 1) / 2) * H, "y": depth * V}
+
+    def subtree_width(nid: str) -> float:
+        kids = children.get(nid, [])
+        if not kids:
+            return NODE_W
+        total = sum(subtree_width(k) for k in kids) + GAP_X * (len(kids) - 1)
+        return max(NODE_W, total)
+
+    def place(nid: str, x_center: float, depth: int):
+        positions[nid] = {"x": x_center - NODE_W / 2, "y": depth * (NODE_H + GAP_Y)}
+        kids = children.get(nid, [])
+        if not kids:
+            return
+        total_w = sum(subtree_width(k) for k in kids) + GAP_X * (len(kids) - 1)
+        cursor = x_center - total_w / 2
+        for k in kids:
+            sw = subtree_width(k)
+            place(k, cursor + sw / 2, depth + 1)
+            cursor += sw + GAP_X
+
+    # Place each root tree side by side
+    root_cursor = 0.0
+    for root in roots:
+        rw = subtree_width(root)
+        place(root, root_cursor + rw / 2, 0)
+        root_cursor += rw + GAP_X * 3
 
     rf_nodes = []
     edges = []
 
     for n in nodes:
         color = TYPE_COLORS.get(n.type, "#6b7280")
+        # Pass children ids so frontend can highlight subtree
+        child_ids = children.get(n.id, [])
         rf_nodes.append({
             "id": n.id, "type": "homelabNode",
             "position": positions.get(n.id, {"x": 0, "y": 0}),
@@ -219,6 +234,8 @@ def get_graph():
                 "scan_error": n.scan_error,
                 "last_scan": n.last_scan,
                 "scanned_layers": n.scanned_layers,
+                "parent_id": n.parent_id,
+                "child_ids": child_ids,
             }
         })
         if n.parent_id:
@@ -227,10 +244,28 @@ def get_graph():
                 "source": n.parent_id, "target": n.id,
                 "type": "smoothstep",
                 "animated": n.status == NodeStatus.ONLINE,
-                "style": {"stroke": color, "strokeWidth": 2, "opacity": 0.6},
+                "style": {"stroke": color, "strokeWidth": 2, "opacity": 0.7},
             })
 
     return {"nodes": rf_nodes, "edges": edges}
+
+
+# ── Reset inventory ────────────────────────────────────────────────────────
+@app.delete("/api/inventory/reset")
+def reset_inventory():
+    """Efface complètement l'inventaire et repart à zéro."""
+    import shutil
+    from pathlib import Path
+    data_dir = Path(storage.DATA_DIR)
+    inv_file = storage.INVENTORY_FILE
+    history_dir = storage.HISTORY_DIR
+    # Archive current inventory before deleting
+    if inv_file.exists():
+        ts = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
+        history_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(inv_file, history_dir / f"pre_reset_{ts}.json")
+        inv_file.unlink()
+    return {"reset": True, "message": "Inventaire réinitialisé"}
 
 
 from app.scanners.dependencies import resolve_dependencies, apply_dependencies, apply_single
