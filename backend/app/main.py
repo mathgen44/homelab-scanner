@@ -270,18 +270,16 @@ def reset_inventory():
 
 from app.scanners.dependencies import resolve_dependencies, apply_dependencies, apply_single
 from app.scanners.docker_promoter import promote_all_containers, cleanup_container_nodes, promote_containers
+from app.scanners.vm_promoter import promote_all_vms, cleanup_vm_nodes, promote_vms
 
 # ── Docker container promotion ─────────────────────────────────────────────
 @app.post("/api/containers/promote")
 def promote_containers_endpoint():
-    """Promeut tous les containers Docker en nœuds de topologie."""
     result = promote_all_containers()
     return result
 
-
 @app.post("/api/containers/promote/{node_id}")
 def promote_node_containers(node_id: str):
-    """Promeut les containers d'un nœud spécifique."""
     node = storage.get(node_id)
     if not node:
         raise HTTPException(404, "Node not found")
@@ -289,11 +287,31 @@ def promote_node_containers(node_id: str):
     promoted = promote_containers(node)
     return {"node_id": node_id, "nodes_created": len(promoted)}
 
-
 @app.delete("/api/containers/nodes/{host_id}")
 def remove_container_nodes(host_id: str):
-    """Supprime les nœuds containers d'un hôte."""
     count = cleanup_container_nodes(host_id)
+    return {"deleted": count}
+
+# ── VM promotion ───────────────────────────────────────────────────────────
+@app.post("/api/vms/promote")
+def promote_vms_endpoint():
+    """Promeut toutes les VMs Proxmox en nœuds de topologie."""
+    result = promote_all_vms()
+    return result
+
+@app.post("/api/vms/promote/{node_id}")
+def promote_node_vms(node_id: str):
+    """Promeut les VMs d'un nœud Proxmox spécifique."""
+    node = storage.get(node_id)
+    if not node:
+        raise HTTPException(404, "Node not found")
+    cleanup_vm_nodes(node_id)
+    promoted = promote_vms(node)
+    return {"node_id": node_id, "nodes_created": len(promoted)}
+
+@app.delete("/api/vms/nodes/{host_id}")
+def remove_vm_nodes(host_id: str):
+    count = cleanup_vm_nodes(host_id)
     return {"deleted": count}
 
 # ── Dependencies ───────────────────────────────────────────────────────────

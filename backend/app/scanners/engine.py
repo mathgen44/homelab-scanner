@@ -244,6 +244,14 @@ async def run_node_scan(node_id: str):
         if promoted:
             await _log(node_id, f"📦 {len(promoted)} nœud(s) container créés dans la topologie")
 
+    # Auto-promote Proxmox VMs as child nodes
+    if result.get("connected") and result["proxmox"]["vms"]:
+        from app.scanners.vm_promoter import cleanup_vm_nodes, promote_vms
+        cleanup_vm_nodes(node_id)
+        promoted_vms = promote_vms(node)
+        if promoted_vms:
+            await _log(node_id, f"⬜ {len(promoted_vms)} VM(s)/LXC promu(s) dans la topologie")
+
     await _emit(WsEventType.SCAN_NODE_DONE, node_id=node_id,
                 data={"node": node.model_dump()},
                 message=f"✓ Scan terminé : {node.name}")
