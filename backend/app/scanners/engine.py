@@ -236,21 +236,18 @@ async def run_node_scan(node_id: str):
     node.last_scan = datetime.now().isoformat()
     storage.upsert(node)
 
-    # Auto-promote Docker containers as child nodes
-    if result.get("connected") and result["docker"]["containers"]:
-        from app.scanners.docker_promoter import cleanup_container_nodes, promote_containers
-        cleanup_container_nodes(node_id)
-        promoted = promote_containers(node)
-        if promoted:
-            await _log(node_id, f"📦 {len(promoted)} nœud(s) container créés dans la topologie")
-
-    # Auto-promote Proxmox VMs as child nodes
+    # Auto-promote Proxmox VMs as child nodes (containers stay as data, not nodes)
     if result.get("connected") and result["proxmox"]["vms"]:
         from app.scanners.vm_promoter import cleanup_vm_nodes, promote_vms
         cleanup_vm_nodes(node_id)
         promoted_vms = promote_vms(node)
         if promoted_vms:
             await _log(node_id, f"⬜ {len(promoted_vms)} VM(s)/LXC promu(s) dans la topologie")
+
+    if result.get("connected") and result["docker"]["containers"]:
+        count = len(result["docker"]["containers"])
+        running = sum(1 for c in result["docker"]["containers"] if "up" in c.status.lower())
+        await _log(node_id, f"🐳 {count} container(s) Docker ({running} actifs) — visibles dans le panneau de détail")
 
     await _emit(WsEventType.SCAN_NODE_DONE, node_id=node_id,
                 data={"node": node.model_dump()},

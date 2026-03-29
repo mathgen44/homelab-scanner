@@ -31,6 +31,114 @@ function UBar({label,value}){
   return(<div style={{marginBottom:8}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{fontSize:11,color:'#8899aa'}}>{label}</span><span style={{fontSize:11,color,fontWeight:600}}>{pct}%</span></div><div style={{height:4,background:'#1e2736',borderRadius:2,overflow:'hidden'}}><div style={{width:`${pct}%`,height:'100%',background:color,borderRadius:2,transition:'width .3s'}}/></div></div>);
 }
 
+function DockerSection({ containers }) {
+  // Group by compose project
+  const groups = {};
+  containers.forEach(c => {
+    const key = c.compose_project || '__standalone__';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(c);
+  });
+
+  const runningTotal = containers.filter(c => c.status?.toLowerCase().includes('up')).length;
+
+  return (
+    <div>
+      {/* Summary bar */}
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,padding:'6px 8px',borderRadius:6,background:'rgba(6,182,212,0.06)',border:'1px solid rgba(6,182,212,0.15)'}}>
+        <span style={{fontSize:11,color:'#06b6d4'}}>
+          <span style={{fontWeight:700}}>{runningTotal}</span>
+          <span style={{color:'#4a5568'}}> / {containers.length} actifs</span>
+        </span>
+        <div style={{flex:1,height:3,background:'#1e2736',borderRadius:2,overflow:'hidden'}}>
+          <div style={{width:`${Math.round((runningTotal/containers.length)*100)}%`,height:'100%',background:'#06b6d4',borderRadius:2}}/>
+        </div>
+      </div>
+
+      {/* Groups */}
+      {Object.entries(groups).map(([project, ctrs]) => (
+        <div key={project} style={{marginBottom:8}}>
+          {/* Project header */}
+          {project !== '__standalone__' && (
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5,padding:'4px 8px',borderRadius:5,background:'rgba(56,189,248,0.06)',border:'1px solid rgba(56,189,248,0.15)'}}>
+              <span style={{fontSize:12}}>📦</span>
+              <span style={{fontSize:11,fontWeight:700,color:'#38bdf8',fontFamily:'var(--sans)'}}>{project}</span>
+              <span style={{marginLeft:'auto',fontSize:9,color:'#4a5568'}}>{ctrs.length} service{ctrs.length>1?'s':''}</span>
+            </div>
+          )}
+          {project === '__standalone__' && ctrs.length > 0 && (
+            <div style={{fontSize:10,color:'#4a5568',marginBottom:5,paddingLeft:4}}>Containers standalone</div>
+          )}
+
+          {/* Container cards */}
+          <div style={{display:'flex',flexDirection:'column',gap:4,paddingLeft: project!=='__standalone__'?8:0}}>
+            {ctrs.map(c => {
+              const run = c.status?.toLowerCase().includes('up');
+              const [imgName, imgTag] = (c.image||'').split(':');
+              return (
+                <div key={c.id} style={{
+                  borderRadius:6,background:'#0d1117',
+                  border:`1px solid ${run?'rgba(52,211,153,0.2)':'rgba(248,113,113,0.15)'}`,
+                  overflow:'hidden',
+                }}>
+                  {/* Container header */}
+                  <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 9px',borderBottom:'1px solid #1e2736'}}>
+                    <div style={{width:6,height:6,borderRadius:'50%',flexShrink:0,
+                      background:run?'#34d399':'#f87171',
+                      boxShadow:run?'0 0 5px #34d399':'none'}}/>
+                    <span style={{fontWeight:700,fontSize:12,color:'#e2e8f0',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {c.name}
+                    </span>
+                    <span style={{fontSize:9,padding:'1px 6px',borderRadius:3,fontWeight:600,flexShrink:0,
+                      background:run?'rgba(52,211,153,0.08)':'rgba(248,113,113,0.08)',
+                      color:run?'#34d399':'#f87171',
+                      border:`1px solid ${run?'rgba(52,211,153,0.2)':'rgba(248,113,113,0.2)'}`}}>
+                      {c.status?.split(' ')[0]?.toUpperCase()}
+                    </span>
+                  </div>
+
+                  {/* Container details */}
+                  <div style={{padding:'5px 9px 6px'}}>
+                    {/* Image */}
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom: c.ports?.length>0?5:0}}>
+                      <span style={{fontSize:9,color:'#4a5568'}}>image</span>
+                      <span style={{fontSize:10,color:'#8899aa',fontFamily:'JetBrains Mono,monospace',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        {imgName}
+                      </span>
+                      {imgTag && imgTag !== 'latest' && (
+                        <span style={{fontSize:9,padding:'0 5px',borderRadius:3,background:'#161b25',color:'#4a5568',border:'1px solid #1e2736',flexShrink:0}}>
+                          {imgTag}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Ports */}
+                    {c.ports?.length>0&&(
+                      <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                        {c.ports.map((p,i)=>(
+                          <span key={i} style={{
+                            fontSize:9,padding:'1px 6px',borderRadius:3,
+                            background:'rgba(56,189,248,0.08)',
+                            color:'#38bdf8',
+                            border:'1px solid rgba(56,189,248,0.18)',
+                            fontFamily:'JetBrains Mono,monospace',
+                          }}>
+                            {p.replace('0.0.0.0:', '')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function NodeDetail({ node, onClose, onScan, allNodes = [], onChildClick }) {
   const [showCredForm, setShowCredForm] = useState(false);
   const [credUser, setCredUser] = useState('');
@@ -141,19 +249,8 @@ export default function NodeDetail({ node, onClose, onScan, allNodes = [], onChi
         )}
 
         {node.docker_containers?.length>0&&(
-          <Section title="Docker" icon="🐳" count={node.docker_containers.length}>
-            {node.docker_containers.map(c=>{
-              const run=c.status?.toLowerCase().includes('up');
-              return(<div key={c.id} style={{padding:'7px 9px',borderRadius:6,background:'#161b25',border:'1px solid #1e2736',marginBottom:5}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
-                  <span style={{fontWeight:700,fontSize:11,color:'#e2e8f0'}}>{c.name}</span>
-                  <span style={{fontSize:9,padding:'1px 6px',borderRadius:3,background:run?'rgba(52,211,153,0.1)':'rgba(248,113,113,0.1)',color:run?'#34d399':'#f87171',border:`1px solid ${run?'rgba(52,211,153,0.25)':'rgba(248,113,113,0.25)'}`}}>{c.status?.split(' ')[0]}</span>
-                </div>
-                <div style={{fontSize:10,color:'#4a5568',fontFamily:'JetBrains Mono,monospace'}}>{c.image}</div>
-                {c.compose_project&&<div style={{fontSize:9,color:'#38bdf8',marginTop:2}}>📦 {c.compose_project}</div>}
-                {c.ports?.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:3,marginTop:4}}>{c.ports.slice(0,4).map((p,i)=><span key={i} style={{fontSize:9,padding:'1px 5px',borderRadius:3,background:'rgba(56,189,248,0.08)',color:'#38bdf8',border:'1px solid rgba(56,189,248,0.2)'}}>{p}</span>)}{c.ports.length>4&&<span style={{fontSize:9,color:'#4a5568'}}>+{c.ports.length-4}</span>}</div>}
-              </div>);
-            })}
+          <Section title="Docker" icon="🐳" count={node.docker_containers.length} defaultOpen={true}>
+            <DockerSection containers={node.docker_containers} />
           </Section>
         )}
 

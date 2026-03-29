@@ -10,8 +10,6 @@ class NodeType(str, Enum):
     NAS = "nas"
     VM = "vm"
     LXC = "lxc"
-    CONTAINER = "container"
-    COMPOSE_GROUP = "compose_group"   # groupe de containers d'un même projet
     CAMERA = "camera"
     PRINTER = "printer"
     GAME_CONSOLE = "game_console"
