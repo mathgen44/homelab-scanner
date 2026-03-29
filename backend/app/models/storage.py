@@ -21,7 +21,24 @@ def load() -> InventoryData:
     if not INVENTORY_FILE.exists():
         return InventoryData()
     try:
-        return InventoryData(**json.loads(INVENTORY_FILE.read_text()))
+        raw = json.loads(INVENTORY_FILE.read_text())
+        # Parse nodes individually to tolerate bad/outdated entries
+        nodes = []
+        for n in raw.get("nodes", []):
+            try:
+                nodes.append(InventoryNode(**n))
+            except Exception:
+                # Try with type forced to unknown for backward compat
+                try:
+                    n["type"] = "unknown"
+                    nodes.append(InventoryNode(**n))
+                except Exception:
+                    pass  # Skip truly broken nodes
+        return InventoryData(
+            nodes=nodes,
+            last_updated=raw.get("last_updated"),
+            version=raw.get("version", "2.0"),
+        )
     except Exception:
         return InventoryData()
 

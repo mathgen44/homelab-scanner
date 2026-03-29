@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
@@ -17,6 +17,11 @@ class NodeType(str, Enum):
     WORKSTATION = "workstation"
     ACCESS_POINT = "access_point"
     UNKNOWN = "unknown"
+
+    @classmethod
+    def _missing_(cls, value):
+        """Tolère les anciennes valeurs (container, compose_group...) → UNKNOWN."""
+        return cls.UNKNOWN
 
 
 class NodeStatus(str, Enum):

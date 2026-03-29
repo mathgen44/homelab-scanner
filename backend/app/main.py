@@ -156,7 +156,6 @@ def get_graph():
         NodeType.ROUTER: "#3b82f6", NodeType.SWITCH: "#6366f1",
         NodeType.SERVER: "#8b5cf6", NodeType.NAS: "#ec4899",
         NodeType.VM: "#14b8a6", NodeType.LXC: "#0d9488",
-        NodeType.CONTAINER: "#06b6d4", NodeType.COMPOSE_GROUP: "#0891b2",
         NodeType.CAMERA: "#f59e0b", NodeType.PRINTER: "#84cc16",
         NodeType.GAME_CONSOLE: "#22c55e", NodeType.RASPBERRY_PI: "#ef4444",
         NodeType.WORKSTATION: "#a78bfa", NodeType.ACCESS_POINT: "#38bdf8",
@@ -165,7 +164,6 @@ def get_graph():
     TYPE_ICONS = {
         NodeType.ROUTER: "🌐", NodeType.SWITCH: "🔀", NodeType.SERVER: "🖥️",
         NodeType.NAS: "💾", NodeType.VM: "⬜", NodeType.LXC: "📦",
-        NodeType.CONTAINER: "🐳", NodeType.COMPOSE_GROUP: "📦",
         NodeType.CAMERA: "📷", NodeType.PRINTER: "🖨️",
         NodeType.GAME_CONSOLE: "🎮", NodeType.RASPBERRY_PI: "🍓",
         NodeType.WORKSTATION: "💻", NodeType.ACCESS_POINT: "📡",

@@ -21,7 +21,9 @@ function getSubtreeIds(nodeId, allNodes) {
   const queue = [nodeId];
   while (queue.length) {
     const cur = queue.shift();
-    (childMap[cur] || []).forEach(c => { if (!result.has(c)) { result.add(c); queue.push(c); } });
+    (childMap[cur] || []).forEach(c => {
+      if (!result.has(c)) { result.add(c); queue.push(c); }
+    });
   }
   return result;
 }
@@ -39,9 +41,9 @@ function TopologyInner({ graphData, onNodeClick }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedId, setSelectedId] = useState(null);
-  const { fitView } = useReactFlow();
-  const initRef = useRef(false);
+  const { fitView, zoomTo, getViewport } = useReactFlow();
   const rawRef = useRef({ nodes: [], edges: [] });
+  const prevCountRef = useRef(0);
 
   useEffect(() => {
     const raw = graphData.nodes || [];
@@ -52,12 +54,17 @@ function TopologyInner({ graphData, onNodeClick }) {
       applyHighlight(raw, rawE, selectedId);
     } else {
       setNodes(raw.map(n => ({ ...n, style: {} })));
-      setEdges(rawE.map(e => ({ ...e, animated: e.animated ?? false, style: { ...e.style, opacity: 0.7 } })));
+      setEdges(rawE.map(e => ({
+        ...e,
+        animated: e.animated ?? false,
+        style: { ...e.style, opacity: 0.7 },
+      })));
     }
 
-    if (!initRef.current && raw.length > 0) {
-      initRef.current = true;
-      setTimeout(() => fitView({ padding: 0.12, duration: 700 }), 150);
+    // fitView whenever node count changes (new nodes added during scan)
+    if (raw.length !== prevCountRef.current) {
+      prevCountRef.current = raw.length;
+      setTimeout(() => fitView({ padding: 0.12, duration: 500 }), 100);
     }
   }, [graphData]);
 
@@ -72,7 +79,7 @@ function TopologyInner({ graphData, onNodeClick }) {
         opacity: highlighted.has(n.id) ? 1 : 0.12,
         transition: 'opacity 0.25s ease',
         filter: highlighted.has(n.id) ? 'none' : 'grayscale(80%)',
-      }
+      },
     })));
 
     setEdges(rawEdges.map(e => {
@@ -86,7 +93,7 @@ function TopologyInner({ graphData, onNodeClick }) {
           stroke: inSubtree ? e.style?.stroke : '#1e2736',
           strokeWidth: inSubtree ? 3 : 1,
           opacity: inPath ? 1 : 0.06,
-        }
+        },
       };
     }));
   }
@@ -95,7 +102,11 @@ function TopologyInner({ graphData, onNodeClick }) {
     const { nodes: rawN, edges: rawE } = rawRef.current;
     setSelectedId(null);
     setNodes(rawN.map(n => ({ ...n, style: {} })));
-    setEdges(rawE.map(e => ({ ...e, animated: false, style: { ...e.style, opacity: 0.7, strokeWidth: 2 } })));
+    setEdges(rawE.map(e => ({
+      ...e,
+      animated: false,
+      style: { ...e.style, opacity: 0.7, strokeWidth: 2 },
+    })));
   }
 
   const handleNodeClick = useCallback((_, node) => {
@@ -114,6 +125,11 @@ function TopologyInner({ graphData, onNodeClick }) {
     onNodeClick?.(null);
   }, []);
 
+  // Click on minimap → reset zoom to fit all
+  const handleMinimapClick = useCallback(() => {
+    fitView({ padding: 0.12, duration: 600 });
+  }, [fitView]);
+
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlow
@@ -127,9 +143,16 @@ function TopologyInner({ graphData, onNodeClick }) {
         nodesConnectable={false}
       >
         <Background color="#1e2736" gap={24} size={1} variant="dots" />
-        <Controls style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8 }} />
+        <Controls
+          style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8 }}
+        />
         <MiniMap
-          style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
+          onClick={handleMinimapClick}
+          style={{
+            background: 'var(--bg2)',
+            border: '1px solid var(--border)',
+            cursor: 'pointer',
+          }}
           nodeColor={n => n.data?.color || '#6b7280'}
           maskColor="rgba(0,0,0,0.65)"
         />
@@ -159,6 +182,9 @@ function TopologyInner({ graphData, onNodeClick }) {
             Clic espace vide pour désélectionner
           </div>
         )}
+        <div style={{ marginTop: 5, paddingTop: 5, borderTop: '1px solid var(--border)', color: 'var(--text3)' }}>
+          Clic minimap → zoom global
+        </div>
       </div>
     </div>
   );
