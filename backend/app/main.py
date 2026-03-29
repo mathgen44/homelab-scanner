@@ -231,6 +231,32 @@ def get_graph():
     return {"nodes": rf_nodes, "edges": edges}
 
 
+from app.scanners.dependencies import resolve_dependencies, apply_dependencies, apply_single
+
+# ── Dependencies ───────────────────────────────────────────────────────────
+@app.get("/api/dependencies/suggest")
+def suggest_dependencies():
+    """Analyse l'inventaire et retourne les liens parent/enfant suggérés."""
+    return resolve_dependencies()
+
+
+@app.post("/api/dependencies/apply")
+def apply_all_dependencies():
+    """Applique automatiquement toutes les suggestions de dépendances."""
+    result = resolve_dependencies()
+    count = apply_dependencies(result["suggestions"])
+    return {"applied": count, "suggestions": result["suggestions"]}
+
+
+@app.patch("/api/dependencies/node/{node_id}")
+def set_parent(node_id: str, parent_id: Optional[str] = None):
+    """Définit manuellement le parent d'un nœud (None = pas de parent)."""
+    ok = apply_single(node_id, parent_id)
+    if not ok:
+        raise HTTPException(404, "Node not found")
+    return {"node_id": node_id, "parent_id": parent_id}
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "version": "2.0"}

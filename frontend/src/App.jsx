@@ -8,6 +8,7 @@ import ScanTerminal from './components/ScanTerminal';
 import DiscoveryWizard from './components/DiscoveryWizard';
 import CredentialModal from './components/CredentialModal';
 import Header from './components/Header';
+import DependencyManager from './components/DependencyManager';
 
 const API = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.host}`;
 
@@ -124,6 +125,7 @@ export default function App() {
   const TABS = [
     { id: 'topology', label: 'Topologie', emoji: '⬡' },
     { id: 'table', label: 'Inventaire', emoji: '☰' },
+    { id: 'dependencies', label: 'Dépendances', emoji: '🔗' },
     { id: 'terminal', label: 'Scan Live', emoji: '⌨', badge: scanLogs.length },
   ];
 
@@ -143,6 +145,7 @@ export default function App() {
       <main className="main">
         {tab === 'topology' && <TopologyView graphData={graphData} onNodeClick={setSelectedNode} onScanNode={scanNode} />}
         {tab === 'table' && <TableView nodes={nodes} onNodeClick={setSelectedNode} onScanNode={scanNode} />}
+        {tab === 'dependencies' && <DependencyManager nodes={nodes} onApplied={fetchData} />}
         {tab === 'terminal' && <ScanTerminal logs={scanLogs} scanning={scanning || discovering} onClear={() => setScanLogs([])} />}
       </main>
       {selectedNode && <NodeDetail node={selectedNode} onClose={() => setSelectedNode(null)} onScan={() => scanNode(selectedNode.id)} />}
