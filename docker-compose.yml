@@ -9,16 +9,16 @@ services:
     network_mode: host
     volumes:
       - homelab-data:/data
-      # Clés SSH optionnelles pour auth par clé :
+      # Clés SSH optionnelles :
       # - ~/.ssh:/root/.ssh:ro
     environment:
       - DATA_DIR=/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 20s
+      test: ["CMD", "curl", "-f", "http://localhost:8088/api/health"]
+      interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
 
   frontend:
     build:
