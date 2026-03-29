@@ -186,10 +186,14 @@ async def run_node_scan(node_id: str):
         storage.upsert(node)
         event = asyncio.Event()
         _cred_requests[node_id] = event
+        # Build a useful display name: prefer hostname over IP
+        display_name = node.name if node.name and node.name != node.ip else (node.hostname or node.ip)
         await _emit(WsEventType.NEEDS_CREDS, node_id=node_id, data={
             "ip": node.ip,
-            "name": node.name,
-        }, message=f"🔑 Identifiants SSH requis pour {node.name} ({node.ip})")
+            "name": display_name,
+            "hostname": node.hostname,
+            "vendor": node.vendor,
+        }, message=f"🔑 Identifiants SSH requis pour {display_name} ({node.ip})")
         try:
             await asyncio.wait_for(event.wait(), timeout=120)
         except asyncio.TimeoutError:
@@ -220,7 +224,12 @@ async def run_node_scan(node_id: str):
     # Merge results into node
     if result["connected"]:
         node.status = NodeStatus.ONLINE
-        node.type = result["node_type"] if result["node_type"] != NodeType.UNKNOWN else node.type
+        # Don't overwrite VM/LXC type with a generic SSH-detected type
+        detected_type = result["node_type"]
+        if node.type in (NodeType.VM, NodeType.LXC):
+            pass  # keep the VM/LXC type set by vm_promoter
+        elif detected_type != NodeType.UNKNOWN:
+            node.type = detected_type
         node.hardware = result["hardware"]
         node.network_interfaces = result["network_interfaces"]
         node.services = result.get("services", [])

@@ -70,7 +70,7 @@ export default function App() {
         if (node_id) setScanProgress(p => ({ ...p, node: data.name || node_id }));
         break;
       case 'needs_creds':
-        setCredRequest({ node_id, ip: data.ip, name: data.name });
+        setCredRequest({ node_id, ip: data.ip, name: data.name, hostname: data.hostname, vendor: data.vendor });
         toast.error(`Identifiants requis : ${data.name}`, { icon: '🔑', duration: 0 });
         break;
       case 'scan_node_done':
@@ -144,7 +144,11 @@ export default function App() {
         ))}
       </nav>
       <main className="main">
-        {tab === 'topology' && <TopologyView graphData={graphData} onNodeClick={setSelectedNode} onScanNode={scanNode} />}
+        {tab === 'topology' && <TopologyView graphData={graphData} onNodeClick={(nd) => {
+          if (!nd) { setSelectedNode(null); return; }
+          const full = nodes.find(n => n.id === nd.id);
+          setSelectedNode(full || nd);
+        }} onScanNode={scanNode} />}
         {tab === 'table' && <TableView nodes={nodes} onNodeClick={setSelectedNode} onScanNode={scanNode} />}
         {tab === 'dependencies' && <DependencyManager nodes={nodes} onApplied={fetchData} />}
         {tab === 'terminal' && <ScanTerminal logs={scanLogs} scanning={scanning || discovering} onClear={() => setScanLogs([])} />}
@@ -154,7 +158,7 @@ export default function App() {
         onChildClick={(child) => setSelectedNode(child)} />}
       {showDiscovery && <DiscoveryWizard onStart={startDiscovery} onClose={() => setShowDiscovery(false)} />}
       {credRequest && <CredentialModal nodeId={credRequest.node_id} ip={credRequest.ip} name={credRequest.name}
-        onSubmit={(u, p, port) => submitCredentials(credRequest.node_id, u, p, port)} onSkip={() => setCredRequest(null)} />}
+        hostname={credRequest.hostname} vendor={credRequest.vendor} onSubmit={(u, p, port) => submitCredentials(credRequest.node_id, u, p, port)} onSkip={() => setCredRequest(null)} />}
     </div>
   );
 }

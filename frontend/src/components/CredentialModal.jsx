@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Shield, X, Eye, EyeOff } from 'lucide-react';
 
-export default function CredentialModal({ nodeId, ip, name, onSubmit, onSkip }) {
+export default function CredentialModal({ nodeId, ip, name, hostname, vendor, onSubmit, onSkip }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [port, setPort] = useState(22);
@@ -33,8 +33,12 @@ export default function CredentialModal({ nodeId, ip, name, onSubmit, onSkip }) 
               <div style={{ fontFamily: 'var(--sans)', fontWeight: 700, fontSize: 15 }}>
                 Identifiants SSH requis
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text2)' }}>
-                {name} · <span style={{ color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{ip}</span>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>
+                {name}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 1, display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{ip}</span>
+                {vendor && <span style={{ color: 'var(--text3)' }}>· {vendor}</span>}
               </div>
             </div>
           </div>
