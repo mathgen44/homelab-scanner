@@ -156,15 +156,17 @@ def get_graph():
         NodeType.ROUTER: "#3b82f6", NodeType.SWITCH: "#6366f1",
         NodeType.SERVER: "#8b5cf6", NodeType.NAS: "#ec4899",
         NodeType.VM: "#14b8a6", NodeType.LXC: "#0d9488",
-        NodeType.CONTAINER: "#06b6d4", NodeType.CAMERA: "#f59e0b",
-        NodeType.PRINTER: "#84cc16", NodeType.GAME_CONSOLE: "#22c55e",
-        NodeType.RASPBERRY_PI: "#ef4444", NodeType.WORKSTATION: "#a78bfa",
-        NodeType.ACCESS_POINT: "#38bdf8", NodeType.UNKNOWN: "#6b7280",
+        NodeType.CONTAINER: "#06b6d4", NodeType.COMPOSE_GROUP: "#0891b2",
+        NodeType.CAMERA: "#f59e0b", NodeType.PRINTER: "#84cc16",
+        NodeType.GAME_CONSOLE: "#22c55e", NodeType.RASPBERRY_PI: "#ef4444",
+        NodeType.WORKSTATION: "#a78bfa", NodeType.ACCESS_POINT: "#38bdf8",
+        NodeType.UNKNOWN: "#6b7280",
     }
     TYPE_ICONS = {
         NodeType.ROUTER: "🌐", NodeType.SWITCH: "🔀", NodeType.SERVER: "🖥️",
         NodeType.NAS: "💾", NodeType.VM: "⬜", NodeType.LXC: "📦",
-        NodeType.CONTAINER: "🐳", NodeType.CAMERA: "📷", NodeType.PRINTER: "🖨️",
+        NodeType.CONTAINER: "🐳", NodeType.COMPOSE_GROUP: "📦",
+        NodeType.CAMERA: "📷", NodeType.PRINTER: "🖨️",
         NodeType.GAME_CONSOLE: "🎮", NodeType.RASPBERRY_PI: "🍓",
         NodeType.WORKSTATION: "💻", NodeType.ACCESS_POINT: "📡",
         NodeType.UNKNOWN: "❓",
@@ -232,6 +234,32 @@ def get_graph():
 
 
 from app.scanners.dependencies import resolve_dependencies, apply_dependencies, apply_single
+from app.scanners.docker_promoter import promote_all_containers, cleanup_container_nodes, promote_containers
+
+# ── Docker container promotion ─────────────────────────────────────────────
+@app.post("/api/containers/promote")
+def promote_containers_endpoint():
+    """Promeut tous les containers Docker en nœuds de topologie."""
+    result = promote_all_containers()
+    return result
+
+
+@app.post("/api/containers/promote/{node_id}")
+def promote_node_containers(node_id: str):
+    """Promeut les containers d'un nœud spécifique."""
+    node = storage.get(node_id)
+    if not node:
+        raise HTTPException(404, "Node not found")
+    cleanup_container_nodes(node_id)
+    promoted = promote_containers(node)
+    return {"node_id": node_id, "nodes_created": len(promoted)}
+
+
+@app.delete("/api/containers/nodes/{host_id}")
+def remove_container_nodes(host_id: str):
+    """Supprime les nœuds containers d'un hôte."""
+    count = cleanup_container_nodes(host_id)
+    return {"deleted": count}
 
 # ── Dependencies ───────────────────────────────────────────────────────────
 @app.get("/api/dependencies/suggest")

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { GitBranch, Zap, ChevronRight, Check, X, RefreshCw, Link, Unlink } from 'lucide-react';
+import { GitBranch, Zap, ChevronRight, Check, X, RefreshCw, Link, Unlink, Box } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.host}`;
@@ -21,6 +21,47 @@ export default function DependencyManager({ nodes, onApplied }) {
   const [manualParent, setManualParent] = useState('');
 
   const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+
+  // Nodes with docker containers (hosts)
+  const dockerHosts = nodes.filter(n => n.docker_containers?.length > 0);
+  // Existing container nodes
+  const containerNodes = nodes.filter(n => n.type === 'container' || n.type === 'compose_group');
+
+  async function promoteAllContainers() {
+    setApplying(true);
+    try {
+      const res = await fetch(`${API}/api/containers/promote`, { method: 'POST' });
+      const data = await res.json();
+      toast.success(`${data.nodes_created} nœud(s) container créés !`, { icon: '🐳' });
+      onApplied?.();
+      fetchSuggestions();
+    } catch (e) {
+      toast.error('Erreur lors de la promotion');
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  async function promoteHostContainers(hostId, hostName) {
+    try {
+      const res = await fetch(`${API}/api/containers/promote/${hostId}`, { method: 'POST' });
+      const data = await res.json();
+      toast.success(`${data.nodes_created} nœud(s) créés pour ${hostName}`, { icon: '🐳' });
+      onApplied?.();
+    } catch (e) {
+      toast.error('Erreur');
+    }
+  }
+
+  async function removeContainerNodes(hostId, hostName) {
+    try {
+      await fetch(`${API}/api/containers/nodes/${hostId}`, { method: 'DELETE' });
+      toast.success(`Nœuds containers supprimés pour ${hostName}`);
+      onApplied?.();
+    } catch (e) {
+      toast.error('Erreur');
+    }
+  }
 
   const fetchSuggestions = useCallback(async () => {
     setLoading(true);
@@ -141,7 +182,105 @@ export default function DependencyManager({ nodes, onApplied }) {
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
 
-        {/* Suggestions auto */}
+        {/* ── Docker Containers ── */}
+        {dockerHosts.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Box size={13} color="#06b6d4" />
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--sans)' }}>
+                  Containers Docker détectés
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--text3)' }}>
+                  {dockerHosts.reduce((a, n) => a + n.docker_containers.length, 0)} containers sur {dockerHosts.length} hôte(s)
+                </span>
+              </div>
+              <button onClick={promoteAllContainers} disabled={applying}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 6,
+                  border: 'none', background: '#06b6d4', color: '#000', cursor: 'pointer',
+                  fontSize: 11, fontWeight: 700, fontFamily: 'var(--mono)', opacity: applying ? 0.6 : 1 }}>
+                🐳 Tout promouvoir en nœuds
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {dockerHosts.map(host => {
+                // Grouper par compose project
+                const byProject = {};
+                host.docker_containers.forEach(c => {
+                  const key = c.compose_project || '(standalone)';
+                  if (!byProject[key]) byProject[key] = [];
+                  byProject[key].push(c);
+                });
+                const alreadyPromoted = containerNodes.some(n =>
+                  n.id.startsWith(`ctr_${host.id}_`) || n.id.startsWith(`compose_${host.id}_`)
+                );
+
+                return (
+                  <div key={host.id} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                    {/* Host header */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 14 }}>🖥️</span>
+                        <div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{host.name}</span>
+                          <span style={{ fontSize: 10, color: 'var(--accent)', fontFamily: 'var(--mono)', marginLeft: 8 }}>{host.ip}</span>
+                        </div>
+                        {alreadyPromoted && (
+                          <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'rgba(52,211,153,0.1)', color: 'var(--green)', border: '1px solid rgba(52,211,153,0.25)' }}>
+                            ✓ Promu
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 5 }}>
+                        <button onClick={() => promoteHostContainers(host.id, host.name)}
+                          style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#06b6d4', color: '#000', cursor: 'pointer', fontWeight: 600 }}>
+                          🐳 Promouvoir
+                        </button>
+                        {alreadyPromoted && (
+                          <button onClick={() => removeContainerNodes(host.id, host.name)}
+                            style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.08)', color: 'var(--red)', cursor: 'pointer' }}>
+                            Retirer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Containers grouped by project */}
+                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {Object.entries(byProject).map(([project, containers]) => (
+                        <div key={project}>
+                          <div style={{ fontSize: 10, color: '#06b6d4', fontWeight: 600, marginBottom: 4 }}>
+                            📦 {project}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingLeft: 12 }}>
+                            {containers.map(c => {
+                              const running = c.status?.toLowerCase().includes('up');
+                              return (
+                                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: running ? 'var(--green)' : 'var(--red)', flexShrink: 0 }} />
+                                  <span style={{ color: 'var(--text)', fontWeight: 500 }}>{c.name}</span>
+                                  <span style={{ color: 'var(--text3)', fontSize: 10, fontFamily: 'var(--mono)' }}>{c.image.split(':')[0]}</span>
+                                  {c.ports?.length > 0 && (
+                                    <span style={{ fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>
+                                      {c.ports.slice(0, 2).join(', ')}{c.ports.length > 2 ? '...' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Suggestions auto ── */}
         {suggestionEntries.length > 0 && (
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>

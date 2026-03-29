@@ -3,9 +3,9 @@ import { Handle, Position } from '@xyflow/react';
 
 const TYPE_LABELS = {
   router:'Routeur',switch:'Switch',server:'Serveur',nas:'NAS',
-  vm:'VM',lxc:'LXC',container:'Container',camera:'Caméra',
-  printer:'Imprimante',game_console:'Console',raspberry_pi:'Raspberry Pi',
-  workstation:'Station',access_point:'AP',unknown:'Inconnu',
+  vm:'VM',lxc:'LXC',container:'Container',compose_group:'Compose',
+  camera:'Caméra',printer:'Imprimante',game_console:'Console',
+  raspberry_pi:'Raspberry Pi',workstation:'Station',access_point:'AP',unknown:'Inconnu',
 };
 const STATUS_COLOR = {online:'#34d399',offline:'#f87171',scanning:'#fbbf24',needs_creds:'#f59e0b',unknown:'#4a5568'};
 
