@@ -139,15 +139,34 @@ function DockerSection({ containers }) {
   );
 }
 
-export default function NodeDetail({ node, onClose, onScan, allNodes = [], onChildClick }) {
+export default function NodeDetail({ node, onClose, onScan, allNodes = [], onChildClick, onUpdate }) {
   const [showCredForm, setShowCredForm] = useState(false);
   const [credUser, setCredUser] = useState('');
   const [credPass, setCredPass] = useState('');
   const [credPort, setCredPort] = useState(22);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+
   if(!node)return null;
   const status=node.status||'unknown';
   const hw=node.hardware||{};
   const statusColor=STATUS_COLORS[status]||'#4a5568';
+
+  function startEdit() {
+    setEditName(node.name);
+    setEditType(node.type);
+    setEditDesc(node.description || '');
+    setEditing(true);
+  }
+
+  function cancelEdit() { setEditing(false); }
+
+  async function saveEdit() {
+    await onUpdate?.({ name: editName, type: editType, description: editDesc });
+    setEditing(false);
+  }
 
   async function saveCreds(){
     await fetch(`${API}/api/credentials`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({node_id:node.id,username:credUser,password:credPass,port:credPort})});
@@ -157,19 +176,47 @@ export default function NodeDetail({ node, onClose, onScan, allNodes = [], onChi
     await fetch(`${API}/api/credentials/${node.id}`,{method:'DELETE'});
   }
 
+  const TYPE_OPTIONS = ['router','switch','server','nas','vm','lxc','camera','printer','game_console','raspberry_pi','workstation','access_point','unknown'];
+  const TYPE_LABELS_MAP = { router:'Routeur',switch:'Switch',server:'Serveur',nas:'NAS',vm:'VM',lxc:'LXC',camera:'Caméra',printer:'Imprimante',game_console:'Console',raspberry_pi:'Raspberry Pi',workstation:'Station',access_point:'AP',unknown:'Inconnu' };
+
   return(
     <div style={{position:'fixed',top:0,right:0,bottom:0,width:340,background:'#10131a',borderLeft:'1px solid #1e2736',zIndex:100,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'-8px 0 32px rgba(0,0,0,0.5)',animation:'slideIn .2s ease'}}>
       <style>{`@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
       <div style={{padding:'12px 14px',borderBottom:'1px solid #1e2736',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-          <div style={{display:'flex',alignItems:'center',gap:9}}>
-            <span style={{fontSize:20}}>{TYPE_ICONS[node.type]||'❓'}</span>
-            <div>
-              <div style={{fontFamily:'Syne,sans-serif',fontWeight:700,fontSize:15,color:'#e2e8f0'}}>{node.name}</div>
-              <div style={{fontSize:11,fontFamily:'JetBrains Mono,monospace',color:'#38bdf8'}}>{node.ip}</div>
-            </div>
+          <div style={{display:'flex',alignItems:'center',gap:9,flex:1,minWidth:0}}>
+            <span style={{fontSize:20,flexShrink:0}}>{TYPE_ICONS[node.type]||'❓'}</span>
+            {editing ? (
+              <div style={{flex:1,display:'flex',flexDirection:'column',gap:5}}>
+                <input value={editName} onChange={e=>setEditName(e.target.value)}
+                  style={{background:'#161b25',border:'1px solid #38bdf8',borderRadius:5,padding:'4px 8px',color:'#e2e8f0',fontSize:13,fontFamily:'Syne,sans-serif',fontWeight:700,width:'100%',outline:'none'}}/>
+                <div style={{display:'flex',gap:5}}>
+                  <select value={editType} onChange={e=>setEditType(e.target.value)}
+                    style={{flex:1,background:'#161b25',border:'1px solid #263044',borderRadius:5,padding:'3px 6px',color:'#e2e8f0',fontSize:11,fontFamily:'JetBrains Mono,monospace',outline:'none'}}>
+                    {TYPE_OPTIONS.map(t=><option key={t} value={t}>{TYPE_LABELS_MAP[t]||t}</option>)}
+                  </select>
+                </div>
+                <input value={editDesc} onChange={e=>setEditDesc(e.target.value)}
+                  placeholder="Description..."
+                  style={{background:'#161b25',border:'1px solid #263044',borderRadius:5,padding:'3px 8px',color:'#8899aa',fontSize:11,width:'100%',outline:'none'}}/>
+                <div style={{display:'flex',gap:5,marginTop:2}}>
+                  <button onClick={saveEdit} style={{flex:1,padding:'4px 0',borderRadius:5,border:'none',background:'#38bdf8',color:'#000',cursor:'pointer',fontSize:11,fontWeight:700}}>✓ Sauver</button>
+                  <button onClick={cancelEdit} style={{flex:1,padding:'4px 0',borderRadius:5,border:'1px solid #263044',background:'#161b25',color:'#8899aa',cursor:'pointer',fontSize:11}}>Annuler</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{minWidth:0,flex:1}}>
+                <div style={{fontFamily:'Syne,sans-serif',fontWeight:700,fontSize:15,color:'#e2e8f0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{node.name}</div>
+                <div style={{fontSize:11,fontFamily:'JetBrains Mono,monospace',color:'#38bdf8'}}>{node.ip}</div>
+              </div>
+            )}
           </div>
-          <button onClick={onClose} style={{width:28,height:28,borderRadius:6,border:'1px solid #1e2736',background:'#161b25',color:'#4a5568',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><X size={13}/></button>
+          <div style={{display:'flex',gap:5,flexShrink:0,marginLeft:6}}>
+            {!editing && (
+              <button onClick={startEdit} title="Modifier" style={{width:26,height:26,borderRadius:5,border:'1px solid #263044',background:'#161b25',color:'#8899aa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12}}>✏️</button>
+            )}
+            <button onClick={onClose} style={{width:26,height:26,borderRadius:5,border:'1px solid #1e2736',background:'#161b25',color:'#4a5568',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><X size={13}/></button>
+          </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
           <div style={{display:'flex',alignItems:'center',gap:5,padding:'3px 9px',borderRadius:20,background:`${statusColor}15`,border:`1px solid ${statusColor}35`,fontSize:11,color:statusColor}}>

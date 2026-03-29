@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { Search, Wifi, WifiOff, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, Wifi, WifiOff, Trash2, AlertTriangle, Download } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.host}`;
 
-export default function Header({ summary, wsConnected, scanning, scanProgress, onScan, onDiscover, onReset }) {
+export default function Header({ summary, wsConnected, scanning, scanProgress, onScan, onDiscover, onReset, onExport }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+
+  // Close export dropdown on outside click
+  React.useEffect(() => {
+    if (!showExport) return;
+    const handler = () => setShowExport(false);
+    setTimeout(() => document.addEventListener('click', handler), 0);
+    return () => document.removeEventListener('click', handler);
+  }, [showExport]);
 
   async function doReset() {
     setResetting(true);
@@ -68,6 +77,49 @@ export default function Header({ summary, wsConnected, scanning, scanProgress, o
               : <>⟳ Scanner tout</>
             }
           </button>
+
+          {/* Export dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowExport(s => !s)}
+              title="Exporter l'inventaire"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '0 10px', height: 30, borderRadius: 6,
+                border: '1px solid var(--border2)', background: 'var(--bg3)',
+                color: 'var(--text2)', cursor: 'pointer', fontSize: 11,
+                fontFamily: 'var(--mono)',
+              }}
+            >
+              <Download size={13} /> Export
+            </button>
+            {showExport && (
+              <div style={{
+                position: 'absolute', top: 36, right: 0, zIndex: 200,
+                background: 'var(--bg2)', border: '1px solid var(--border2)',
+                borderRadius: 8, overflow: 'hidden', minWidth: 130,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              }}>
+                {[['JSON', '{ }', 'json'], ['CSV', '⊟', 'csv']].map(([label, icon, fmt]) => (
+                  <button
+                    key={fmt}
+                    onClick={() => { onExport?.(fmt); setShowExport(false); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      padding: '9px 14px', border: 'none', background: 'none',
+                      color: 'var(--text)', cursor: 'pointer', fontSize: 12,
+                      fontFamily: 'var(--mono)', textAlign: 'left',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg3)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <span style={{ color: 'var(--accent)', fontSize: 14 }}>{icon}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <button
             onClick={() => setShowConfirm(true)}
